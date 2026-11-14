@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#10283f">
+<link rel="manifest" href="manifest.webmanifest">
+<title>AeroMap World</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--navy:#10283f;--blue:#1677c8;--bg:#eef3f7;--muted:#718096}
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:#142536}
+header{background:var(--navy);color:white;padding:15px 16px;display:flex;justify-content:space-between;align-items:center}
+header b{font-size:18px;letter-spacing:.3px}header small{display:block;color:#b8cad8;font-size:11px;margin-top:3px}
+.pill{font-size:11px;background:#244761;padding:6px 9px;border-radius:20px}
+#map{height:48vh;min-height:300px;width:100%;background:#dce5eb}
+.controls{padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+button,select{border:0;border-radius:12px;padding:12px;background:white;color:#173047;font-size:14px;box-shadow:0 1px 5px #10283f18}
+button.primary{background:var(--blue);color:white;font-weight:650}
+button:active{transform:scale(.98)}
+.panel{margin:0 12px 12px;background:white;border-radius:16px;padding:13px;box-shadow:0 2px 10px #10283f10}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.metric{background:#f3f7fa;border-radius:12px;padding:10px 6px;text-align:center;min-width:0}
+.metric span{display:block;color:var(--muted);font-size:10px;margin-bottom:6px}
+.metric strong{font-size:19px;display:block;direction:ltr}
+.metric em{font-style:normal;color:var(--muted);font-size:10px}
+.row{display:flex;gap:8px;align-items:center;margin-top:9px}
+.row select{flex:1;min-width:0;border:1px solid #e1e8ee;box-shadow:none}
+.dest{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.dest strong{font-size:21px;direction:ltr}
+.note{font-size:11px;color:var(--muted);line-height:1.6;padding:0 14px 18px}
+#status{font-size:12px;color:var(--muted);margin-top:8px}
+.leaflet-control-attribution{font-size:9px!important}
+@media(min-width:700px){#map{height:58vh}.panel,.controls{max-width:900px;margin-left:auto;margin-right:auto}}
+</style>
+</head>
+<body>
+<header><div><b>✈ AeroMap World</b><small>GPS • Moving Map • Airport Distance</small></div><span class="pill" id="gpsBadge">GPS غير متصل</span></header>
+<div id="map"></div>
+<div class="controls">
+<button class="primary" id="locate">تحديد موقعي GPS</button>
+<button id="layer">تبديل نوع الخريطة</button>
+</div>
+<section class="panel">
+<div class="metrics">
+<div class="metric"><span>السرعة الأرضية</span><strong id="speed">--</strong><em>km/h</em></div>
+<div class="metric"><span>الاتجاه Track</span><strong id="heading">--</strong><em>درجة</em></div>
+<div class="metric"><span>دقة GPS</span><strong id="accuracy">--</strong><em>متر</em></div>
+</div>
+<div class="row">
+<select id="airport"></select>
+<button class="primary" id="go">اختر الوجهة</button>
+</div>
+<div class="dest" style="margin-top:12px">
+<div><span style="font-size:11px;color:#718096">المسافة إلى المطار</span><div><strong id="distance">--</strong> <small>NM</small></div></div>
+<div style="text-align:left"><span style="font-size:11px;color:#718096">زمن الوصول التقديري</span><div><strong id="eta">--</strong></div></div>
+</div>
+<div id="status">فعّل خدمات الموقع واسمح لـ Safari بالوصول إلى موقعك لبدء التتبع.</div>
+</section>
+<p class="note">نسخة تجريبية أولية. بيانات GPS والسرعة الأرضية ليست بديلاً عن أجهزة الطيران أو مصادر الملاحة المعتمدة. الارتفاع الجوي وTAS غير متاحين من GPS الهاتف بشكل موثوق. خرائط الأساس تتطلب اتصالاً بالإنترنت حالياً؛ التخزين دون اتصال يحتاج حزم خرائط مرخصة يتم تنزيلها مسبقاً.</p>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const airports=[
+ {name:"القاهرة الدولي — HECA",lat:30.1219,lon:31.4056},
+ {name:"برج العرب — HEBA",lat:30.9177,lon:29.6964},
+ {name:"الغردقة — HEGN",lat:27.1783,lon:33.7994},
+ {name:"شرم الشيخ — HESH",lat:27.9773,lon:34.3949},
+ {name:"الأقصر — HELX",lat:25.6710,lon:32.7066},
+ {name:"أسوان — HESN",lat:23.9644,lon:32.8199},
+ {name:"أبو سمبل — HEBL",lat:22.3759,lon:31.6117},
+ {name:"مرسى علم — HEMA",lat:25.5571,lon:34.5837},
+ {name:"العلمين — HEAL",lat:30.9245,lon:28.4614},
+ {name:"الإسكندرية النزهة — HEAX",lat:31.1839,lon:29.9489}
+];
+const sel=document.getElementById('airport');
+airports.forEach((a,i)=>{let o=document.createElement('option');o.value=i;o.textContent=a.name;sel.appendChild(o)});
+const map=L.map('map').setView([26.8,30.8],5);
+const street=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'});
+const satellite=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,attribution:'Tiles © Esri'});
+street.addTo(map);let sat=false;
+document.getElementById('layer').onclick=()=>{map.removeLayer(sat?satellite:street);sat=!sat;(sat?satellite:street).addTo(map)};
+airports.forEach(a=>L.marker([a.lat,a.lon]).addTo(map).bindPopup(a.name));
+let marker=null,watch=null,last=null,destination=null;
+const $=id=>document.getElementById(id);
+function hav(a,b){const R=6371000,p=Math.PI/180,d1=(b.lat-a.lat)*p,d2=(b.lon-a.lon)*p,x=Math.sin(d1/2)**2+Math.cos(a.lat*p)*Math.cos(b.lat*p)*Math.sin(d2/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
+function updateDest(pos){if(!destination||!pos)return;const m=hav(pos,destination);$('distance').textContent=(m/1852).toFixed(1);const v=pos.speed!=null&&pos.speed>1?pos.speed*3.6:null;$('eta').textContent=v?(m/1000/v*60).toFixed(0)+' د':'--'}
+function onPos(p){const c={lat:p.coords.latitude,lon:p.coords.longitude};const sp=p.coords.speed;const hd=p.coords.heading;
+$('gpsBadge').textContent='GPS متصل';$('speed').textContent=sp==null?'--':(sp*3.6).toFixed(0);$('heading').textContent=hd==null?'--':Math.round(hd);$('accuracy').textContent=Math.round(p.coords.accuracy);
+if(!marker){marker=L.circleMarker([c.lat,c.lon],{radius:8,color:'#fff',weight:3,fillColor:'#1677c8',fillOpacity:1}).addTo(map).bindPopup('موقع الهاتف GPS');map.setView([c.lat,c.lon],8)}else marker.setLatLng([c.lat,c.lon]);
+last={...c,speed:sp};updateDest(last);$('status').textContent=`الإحداثيات: ${c.lat.toFixed(5)}, ${c.lon.toFixed(5)} • آخر تحديث: ${new Date().toLocaleTimeString('ar-EG')}`;
+}
+function onErr(e){$('gpsBadge').textContent='GPS غير متصل';$('status').textContent='تعذر تحديد الموقع: '+e.message+' — تحقق من صلاحيات الموقع وخدمات GPS.'}
+function start(){if(!navigator.geolocation){$('status').textContent='المتصفح لا يدعم GPS.';return}if(watch!==null)navigator.geolocation.clearWatch(watch);watch=navigator.geolocation.watchPosition(onPos,onErr,{enableHighAccuracy:true,maximumAge:1000,timeout:15000})}
+$('locate').onclick=start;
+$('go').onclick=()=>{destination=airports[Number(sel.value)];map.setView([destination.lat,destination.lon],8);updateDest(last);$('status').textContent='الوجهة: '+destination.name+' — المسافة خط مستقيم وليست مساراً جوياً.'};
+if('serviceWorker' in navigator && location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
+</script>
+</body></html>
